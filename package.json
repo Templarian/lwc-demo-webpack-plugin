@@ -1,0 +1,24 @@
+{
+  "name": "lwc-demo-webpack-plugin",
+  "version": "1.0.0",
+  "description": "Webpack plugin for lwc-demo.",
+  "main": "lwcDemoWebpackPlugin.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Templarian/lwc-demo-webpack-plugin.git"
+  },
+  "author": "Austin Andrews",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Templarian/lwc-demo-webpack-plugin/issues"
+  },
+  "homepage": "https://github.com/Templarian/lwc-demo-webpack-plugin#readme",
+  "devDependencies": {
+    "glob": "^7.1.4",
+    "jsdoc-api": "^5.0.1",
+    "webpack-virtual-modules": "^0.1.10"
+  }
+}
