@@ -3,6 +3,16 @@ const fs = require('fs');
 const path = require('path');
 const jsdoc = require('jsdoc-api');
 const VirtualModulesPlugin = require('webpack-virtual-modules');
+const getNamespaces = require('./utils/getNamespaces');
+const getFilesToWatch = require('./utils/getFilesToWatch');
+const {
+  LAYOUT,
+  getConfig,
+  getInfoFromPath,
+  isValidModuleName,
+  getInfoFromId,
+  npmmodules
+} = require('./utils/module');
 
 /*
 General note about this file... it is very ugly.
@@ -51,38 +61,54 @@ const normalizeJSdoc = function (jsdoc) {
   return items;
 }
 
-var walkSync = function(dir, filelist = []) {
-  var path = path || require('path');
-  var fs = fs || require('fs'),
-      files = fs.readdirSync(dir);
-  filelist = filelist || [];
-  files.forEach(function(file) {
-      if (fs.statSync(path.join(dir, file)).isDirectory()) {
-          filelist = walkSync(path.join(dir, file), filelist);
-      }
-      else {
-          filelist.push(path.join(dir, file));
-      }
-  });
-  return filelist;
-};
+const virtualModules = new VirtualModulesPlugin({
+  'node_modules/data.js': `const data = {};export default data;`
+});
 
-const virtualModules = new VirtualModulesPlugin();
-
-class GenerateDemoPlugin {
+class LwcDemoWebpackPlugin {
   constructor(options) {
     var defaultOptions = {
       excludes: ['demo'],
       modules: []
     }
     this.options = { ...defaultOptions, ...(options || {}) };
+    // Array of namespaces and components to watch
+    this.namespaces = getNamespaces(npmmodules);
   }
 
   apply(compiler) {
-    // Apply Virtual Modules
-    virtualModules.apply(compiler);
     // Plugin Name
     var plugin = 'GenerateDemoJson';
+    // Apply Virtual Modules
+    virtualModules.apply(compiler);
+    // Console Log Watchers
+    this.namespaces.forEach(namespace => {
+      console.log(`Namespace: ${namespace.name}`);
+      namespace.components.forEach(component => {
+        console.log(` - Component: ${component.name}`);
+      });
+    });
+
+    compiler.hooks.compilation.tap(plugin, compilation => {
+      // Watch Files
+      compilation.fileDependencies = [];
+      this.namespaces.forEach(namespace => {
+        namespace.components.forEach(component => {
+          var files = getFilesToWatch(component.folder);
+          files.forEach(file => {
+            compilation.fileDependencies.push(file);
+          })
+        });
+      });
+      
+      // This is the actual data imported
+      var data = JSON.stringify(demoJson);
+      virtualModules.writeModule(
+        'node_modules/data.js',
+        `const data = ${data};export default data;`
+      );
+    });
+
     var demoJson = {
       namespaces: [],
       excludes: this.options.excludes || ['demo'],
@@ -93,20 +119,6 @@ class GenerateDemoPlugin {
     var toRelative = function (absolute, root) {
       return absolute.replace(root, '').replace(/\\/g, '/').replace(/^\//, '');
     };
-
-    compiler.hooks.emit.tapAsync('emit', function (compilation, callback) {
-      // Find in node_modules (good for production/local dev)
-      var nodeMatches = glob.sync("node_modules/*/src/modules/*/*/*.js");
-      // - Verify package.json has a root lwc obj
-      
-      // Find in Local Modules (good for local dev)
-      var localMatches = glob.sync("src/modules/*/*/*.js");
-      var icon = 'src/modules/mdi/icon/icon.js';
-      compilation.fileDependencies = [];
-      compilation.fileDependencies.push(path.join(compiler.context, icon));
-      console.log(localMatches, '+++');
-      callback();
-    });
 
     compiler.hooks.emit.tapAsync('emit', function (compilation, callback) {
       var data = JSON.stringify(demoJson);
@@ -251,13 +263,6 @@ class GenerateDemoPlugin {
           }
         });
       });
-      console.log('generate');
-      // This is the actual data imported
-      var data = JSON.stringify(demoJson);
-      virtualModules.writeModule(
-        'node_modules/data.js',
-        `const data = ${data};export default data;`
-      );
     });
 
     compiler.hooks.afterPlugins.tap(plugin, () => {
@@ -275,14 +280,14 @@ class GenerateDemoPlugin {
           var stat = fs.statSync(folder);
           if (stat.isDirectory()) {
             if (item === 'mdi'){
-              var files = walkSync(folder)
+              /*var files = walkSync(folder)
                 .map(f => f.replace(/\\/g, '/'))
                 .forEach(f => {
                   virtualModules.writeModule(
                     f,
                     fs.readFileSync(f, 'utf8')
                   );
-                });
+                });*/
             }
           }
         });
@@ -291,4 +296,4 @@ class GenerateDemoPlugin {
   }
 }
 
-module.exports = GenerateDemoPlugin;
+module.exports = LwcDemoWebpackPlugin;
